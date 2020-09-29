@@ -1,6 +1,8 @@
 package uk.ac.ed.inf.heatmap;
 
 import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import com.mapbox.geojson.Geometry;
@@ -32,7 +34,7 @@ public class App
     //predictionReader takes an pathname and reads the associated file, printing
     //the contents
     {
-    	// The filepath is passed as a parameter
+    	// The file-path is passed as a parameter
         FileReader fr = new FileReader(args[0]); 
         int i;
         String readings = "";
@@ -45,12 +47,6 @@ public class App
         readings = readings.replace("\n", ",").replace("\r", "");
         readings = readings.replace(" ", "");
         String[] predictions = readings.split(",");
-
-        
-        for (int x = 0; x < predictions.length; x++)
-        {
-        	System.out.print(predictions[x] + " ");
-        }
         
         fr.close();
         
@@ -67,7 +63,7 @@ public class App
     	double lonGridLen = (lon2 - lon1)/10;
     	double latGridLen = (lat2 - lat1)/10;
     	List<Point> coordinates = new ArrayList<>();
-    	List<Point> fourCorners = new ArrayList<>();
+    	//List<Point> fourCorners = new ArrayList<>();
     	List<List<Point>> polyCoords = new ArrayList<>();
     	
     	// Loop through all 121 points on the grid, matching each longitude and latitude and storing them
@@ -79,27 +75,22 @@ public class App
     			coordinates.add(Point.fromLngLat(lon1 + lonGridLen*(double)j, lat1 + latGridLen*(double)i));
     		}
     	}
-    	// Loop through each rectangle in the grid, adding the four corresponding coordinates to a list of
-    	// points, then add that list to a list of lists "polyCoords" which describes the four points needed
-    	// to describe the location of each polygon
+    	// Loop through each rectangle in the grid, adding the five corresponding coordinates for each polygon
+    	// into a list, then adding that list to a list of lists of points that describe each polygon, called
+    	// "polyCoords"
+    	
     	for(int i = 0; i < 10; i++)
     	{
     		for(int j = 0; j < 10; j++)
     		{
-    			fourCorners.clear();
-	    		fourCorners.add(coordinates.get(j+(i*11)));
-	    		fourCorners.add(coordinates.get(j+1+(i*11)));
-	    		fourCorners.add(coordinates.get(j+11+(i*11)));
-	    		fourCorners.add(coordinates.get(j+12+(i*11)));
-	    		
-	    		polyCoords.add(i, fourCorners);
+    			polyCoords.add(List.of((coordinates.get(j+(i*11))),
+    								   (coordinates.get(j+1+(i*11))),
+    								   (coordinates.get(j+12+(i*11))),
+    								   (coordinates.get(j+11+(i*11))),
+    								   (coordinates.get(j+(i*11)))));
     		}
     		
     	}
-    	System.out.println("\n");
-    	System.out.println(polyCoords.get(0));
-    	System.out.println("\n");
-    	System.out.println(polyCoords.size());
     	return polyCoords;
     }
 
@@ -108,15 +99,11 @@ public class App
     {
     	List<Polygon> polygons = new ArrayList<>();
     	
-    	// Looping through each group of four coordinates and adding them to a list of type "Polygon"
-    	// for use in creating the GeoJSON map
-    	for(int i = 0; i < 10; i++)
+    	for(int i = 0; i < 100; i++)
     	{
-    		for(int j = 0; j < 10; j++)
-    		{
-    			polygons.add(Polygon.fromLngLats(polyCoords));
-    		}
+    		polygons.add(Polygon.fromLngLats(List.of(polyCoords.get(i))));	
     	}
+
     	return polygons;
     }
     
@@ -163,9 +150,10 @@ public class App
     	return colourMap;
     }
     
-    public static String geojsonConvert(List<Polygon> polygons, ArrayList<String> colourMap)
+    public static void geojsonConvert(List<Polygon> polygons, ArrayList<String> colourMap) throws IOException
     {
     	List<Feature> featureList = new ArrayList<>();
+    	FileWriter jsonFile = new FileWriter("dronezone.json");
     	
     	for(int i = 0; i < 100; i++)
     	{
@@ -174,8 +162,10 @@ public class App
     		featureList.get(i).addStringProperty("fill", colourMap.get(i));
     		featureList.get(i).addNumberProperty("fill-opacity", 0.75);
     	}
+    	System.out.print("\nFeature[0] = " + featureList.get(0));
     	FeatureCollection featureCol = FeatureCollection.fromFeatures(featureList);
     	
-    	return featureCol.toJson();
+    	jsonFile.write(featureCol.toJson());
+    	jsonFile.close();
     }
 }
