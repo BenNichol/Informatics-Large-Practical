@@ -15,12 +15,14 @@ import com.mapbox.geojson.Feature;
  * The following application will take a list of predictions and convert the data into
  * a format compatible with Geo-JSON.  This Geo-JSON document will then be used to produce
  * a heatmap
+ * 
+ * Written by Ben Nichol (s1805741) 
  */
 
 public class App 
 {
 	
-    public static void main( String[] args ) throws Exception
+    public static void main(String[] args) throws Exception
     {
     	String[] pathname = args;
     	String[] predictions = predictionReader(pathname);
@@ -30,7 +32,7 @@ public class App
     	geojsonConvert(polygons, colourMap);
     }
     
-    public static String[] predictionReader( String[] args) throws Exception
+    public static String[] predictionReader(String[] args) throws Exception
     //predictionReader takes an pathname and reads the associated file, printing
     //the contents
     {
@@ -49,21 +51,22 @@ public class App
         String[] predictions = readings.split(",");
         
         fr.close();
-        
         return predictions;
     }
     
     public static List<List<Point>> gridCoords()
-    // returns a list of four points, each denoting a polygon on the 10x10 grid
+    // This method will return the variable "polyCoords", containing 100 lists of 5 coordinates, with each
+    // list describing a single polygon in the 10x10 grid
     {
+    	// These four coordinates describe the boundary of the drones flying zone
     	double lon1 = -3.192473;
     	double lon2 = -3.184319;
     	double lat1 = 55.946233;
     	double lat2 = 55.942617;
+    	// These values are used to separate the grid into a 10x10 area
     	double lonGridLen = (lon2 - lon1)/10;
     	double latGridLen = (lat2 - lat1)/10;
     	List<Point> coordinates = new ArrayList<>();
-    	//List<Point> fourCorners = new ArrayList<>();
     	List<List<Point>> polyCoords = new ArrayList<>();
     	
     	// Loop through all 121 points on the grid, matching each longitude and latitude and storing them
@@ -151,10 +154,15 @@ public class App
     }
     
     public static void geojsonConvert(List<Polygon> polygons, ArrayList<String> colourMap) throws IOException
+    // This method will create a list of features from the polygons and their associated colour values and add
+    // them to a feature collection.  This feature collection will then be converted to GeoJSON format and  
+    // written to a file called 'heatmap.geojson'
     {
+    	// Creating a list to store the features and a File Writer to write the geojson file
     	List<Feature> featureList = new ArrayList<>();
-    	FileWriter jsonFile = new FileWriter("dronezone.json");
+    	FileWriter jsonFile = new FileWriter("heatmap.geojson");
     	
+    	// Loop through the feature list, adding the polygons and their colour values
     	for(int i = 0; i < 100; i++)
     	{
     		featureList.add(Feature.fromGeometry((Geometry)polygons.get(i)));
@@ -162,9 +170,10 @@ public class App
     		featureList.get(i).addStringProperty("fill", colourMap.get(i));
     		featureList.get(i).addNumberProperty("fill-opacity", 0.75);
     	}
-    	System.out.print("\nFeature[0] = " + featureList.get(0));
+    	// Create a feature collection from the list of features described above
     	FeatureCollection featureCol = FeatureCollection.fromFeatures(featureList);
     	
+    	//Convert the feature collection to JSON format, write it to the file and then close the file 
     	jsonFile.write(featureCol.toJson());
     	jsonFile.close();
     }
