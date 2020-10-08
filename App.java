@@ -26,9 +26,9 @@ public class App
     {
     	String[] pathname = args;
     	String[] predictions = predictionReader(pathname);
-    	List<List<Point>> polyCoords =  gridCoords();
-    	List<Polygon> polygons = createPolygons(polyCoords);
-    	ArrayList<String> colourMap = hexCodeConversion(predictions);
+    	var polyCoords =  gridCoords();
+    	var polygons = createPolygons(polyCoords);
+    	var colourMap = hexCodeConversion(predictions);
     	geojsonConvert(polygons, colourMap);
     }
     
@@ -37,7 +37,7 @@ public class App
     //the contents
     {
     	// The file-path is passed as a parameter
-        FileReader fr = new FileReader(args[0]); 
+        var fr = new FileReader(args[0]); 
         int i;
         String readings = "";
         // Loop through the text in the file, adding each character to a string, stop when EOF is reached
@@ -63,11 +63,13 @@ public class App
     	double lon2 = -3.184319;
     	double lat1 = 55.946233;
     	double lat2 = 55.942617;
+    	
     	// These values are used to separate the grid into a 10x10 area
     	double lonGridLen = (lon2 - lon1)/10;
     	double latGridLen = (lat2 - lat1)/10;
-    	List<Point> coordinates = new ArrayList<>();
-    	List<List<Point>> polyCoords = new ArrayList<>();
+    	
+    	var coordinates = new ArrayList<Point>();
+    	var polyCoords = new ArrayList<List<Point>>();
     	
     	// Loop through all 121 points on the grid, matching each longitude and latitude and storing them
     	// in a list of points "coordinates"
@@ -86,6 +88,7 @@ public class App
     	{
     		for(int j = 0; j < 10; j++)
     		{
+    			// The 5 coordinates are added clockwise, starting and ending at the most north-westerly coordinate  
     			polyCoords.add(List.of((coordinates.get(j+(i*11))),
     								   (coordinates.get(j+1+(i*11))),
     								   (coordinates.get(j+12+(i*11))),
@@ -100,7 +103,7 @@ public class App
     public static List<Polygon> createPolygons(List<List<Point>> polyCoords)
     // This method will return a list of all polygons present in the 10x10 drone fly zone
     {
-    	List<Polygon> polygons = new ArrayList<>();
+    	var polygons = new ArrayList<Polygon>();
     	
     	for(int i = 0; i < 100; i++)
     	{
@@ -113,7 +116,7 @@ public class App
     public static ArrayList<String> hexCodeConversion(String[] predictions)
     // This function will convert the predictions into the appropriate hex-code colour
     {
-    	ArrayList<String> colourMap = new ArrayList<String>();
+    	var colourMap = new ArrayList<String>();
     	
     	for(int i = 0; i < 100; i++)
     	{
@@ -159,8 +162,8 @@ public class App
     // written to a file called 'heatmap.geojson'
     {
     	// Creating a list to store the features and a File Writer to write the geojson file
-    	List<Feature> featureList = new ArrayList<>();
-    	FileWriter jsonFile = new FileWriter("heatmap.geojson");
+    	var featureList = new ArrayList<Feature>();
+    	var jsonFile = new FileWriter("heatmap.geojson");
     	
     	// Loop through the feature list, adding the polygons and their colour values
     	for(int i = 0; i < 100; i++)
@@ -171,7 +174,7 @@ public class App
     		featureList.get(i).addNumberProperty("fill-opacity", 0.75);
     	}
     	// Create a feature collection from the list of features described above
-    	FeatureCollection featureCol = FeatureCollection.fromFeatures(featureList);
+    	var featureCol = FeatureCollection.fromFeatures(featureList);
     	
     	//Convert the feature collection to JSON format, write it to the file and then close the file 
     	jsonFile.write(featureCol.toJson());
