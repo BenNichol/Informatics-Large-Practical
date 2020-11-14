@@ -39,7 +39,7 @@ public class AirQualityDrone
         ArrayList<Integer> dronePath = greedyPath(drone, coordinates, args);
         var sensorOutput = flightPath(drone, sensors, dronePath, coordinates, nfz, allFeatures);
         var sensorMap = hexCodeConversion(sensorOutput);
-        geojsonConvert(sensorMap, sensors, dronePath, coordinates);
+        geojsonConvert(sensorMap, sensors, dronePath, coordinates, allFeatures);
     }
     
     public static class Drone 
@@ -163,12 +163,12 @@ public class AirQualityDrone
     	double dist;
     	int closestSensorNumber = 0;
     	
-    	for(int i = 0; i < coordinates.size()-2; i++)
+    	for(int i = 0; i < coordinates.size()-1; i++)
     	{
     		visited.add(dronePath.get(i));
     		closestSensor = dronePath.get(i+1);
     		closerFound = false;
-    		for(int j = i+1; j < coordinates.size()-1; j++)
+    		for(int j = i+1; j < coordinates.size(); j++)
     		{
     			closestDist = euclidDist(coordinates.get(dronePath.get(i)), coordinates.get(closestSensor));
     			dist = euclidDist(coordinates.get(dronePath.get(i)), coordinates.get(dronePath.get(j)));
@@ -188,7 +188,10 @@ public class AirQualityDrone
     	
     	// Append the drone's starting position to the end
     	dronePath.add(0);
-    	
+    	for(int i = 0; i<dronePath.size(); i++)
+    	{
+    		System.out.print(dronePath.get(i) + " ");
+    	}
     	return dronePath;
     }
     
@@ -265,6 +268,7 @@ public class AirQualityDrone
 					{
 						readings.add(sensors.get(dronePath.get(i)-1).reading);
 						batteries.add(String.valueOf(sensors.get(dronePath.get(i)-1).battery));
+						
 					}
 	    			
 	    			sensProx = true;
@@ -280,7 +284,7 @@ public class AirQualityDrone
     	
     	// Add the drone positions as a line string
     	dronePositions.add(Feature.fromGeometry(LineString.fromLngLats(movementHistory)));
-    	System.out.println(dronePositions);
+    	
     	// Give the lines a dark grey colour
     	for(int j = 0; j < dronePositions.size(); j++)
     	{
@@ -299,11 +303,11 @@ public class AirQualityDrone
     	var sensorMap = new ArrayList<List<String>>();
     	for(int i = 0; i < sensorOutput.get(0).size(); i++)
     	{
-    		// Gray, no symbol
+    		// Black, cross
     		if (Double.parseDouble(sensorOutput.get(1).get(i)) < 10)
     		{
-    			colourMap.add(i, "#aaaaaa");
-    			symbolMap.add(i, "");
+    			colourMap.add(i, "#000000");
+    			symbolMap.add(i, "cross");
     		}
     		// Green, lighthouse
     		else if (Double.parseDouble(sensorOutput.get(0).get(i)) >= 0 && Double.parseDouble(sensorOutput.get(0).get(i)) < 32)
@@ -353,38 +357,54 @@ public class AirQualityDrone
     			colourMap.add(i, "#ff0000");
     			symbolMap.add(i, "danger");
     		}
-    		else if (Double.parseDouble(sensorOutput.get(1).get(i)) < 10)
-    		{
-    			colourMap.add(i, "#000000");
-    			symbolMap.add(i, "cross");
-    		}
-    		
+    		else // Gray, no symbol
+         	{
+        		colourMap.add(i, "#aaaaaa");
+        		symbolMap.add(i, "");
+        	}
     	}
     	sensorMap.add(colourMap);
     	sensorMap.add(symbolMap);
-    	System.out.println(sensorMap.get(0).get(0));
     	return sensorMap;
     }
-    public static void geojsonConvert(ArrayList<List<String>> sensorMap, ArrayList<SensorsList> sensors, ArrayList<Integer> dronePath, ArrayList<Point> coordinates) throws IOException
-    // This method will create a list of features from the polygons and their associated colour values and add
-    // them to a feature collection.  This feature collection will then be converted to GeoJSON format and  
-    // written to a file called 'heatmap.geojson'
+    public static void geojsonConvert(ArrayList<List<String>> sensorMap, ArrayList<SensorsList> sensors, ArrayList<Integer> dronePath, ArrayList<Point> coordinates, ArrayList<List<Feature>> allFeatures) throws IOException
+    // This method will create a list of features from the sensor points and their associated values and add
+    // them to a feature collection, along with the drone's movements.  This feature collection will then be converted to GeoJSON format and  
+    // written to a file called 'aqmaps.geojson'
     {
     	// Creating a list to store the features and a File Writer to write the geojson file
     	var featureList = new ArrayList<Feature>();
     	var jsonFile = new FileWriter("aqmaps.geojson");
-    	System.out.println(sensorMap.get(0).get(1));
-    	// Loop through the feature list, adding the polygons and their colour values
-    	for(int i = 0; i < sensorMap.get(0).size()-1; i++)
+    	
+    	// Normalise the dronePath and coordinates array, removing prepended & appended drone starting positions, and reducing the values by 1 to
+    	// be in line with the sensor indexing
+    	coordinates.remove(0);
+    	dronePath.remove(0);
+    	dronePath.remove(dronePath.size()-1);
+    	for(int i = 0; i < dronePath.size(); i++)
     	{
-    		featureList.add(Feature.fromGeometry(coordinates.get(dronePath.get(i+1))));
+    		dronePath.set(i, dronePath.get(i)-1);
+    	}
+    	
+    	// Loop through the feature list, adding the polygons and their colour values
+    	for(int i = 0; i < dronePath.size(); i++)
+    	{
+    		featureList.add(Feature.fromGeometry(coordinates.get(dronePath.get(i))));
     		featureList.get(i).addStringProperty("marker-size", "medium");
-    		featureList.get(i).addStringProperty("location", sensors.get(dronePath.get(i+1)).location);
-    		featureList.get(i).addStringProperty("rgb-string", sensorMap.get(0).get(dronePath.get(i+1)));
-    		featureList.get(i).addStringProperty("marker-color", sensorMap.get(0).get(dronePath.get(i+1)));
-    		featureList.get(i).addStringProperty("marker-symbol", sensorMap.get(1).get(dronePath.get(i+1)));
+    		featureList.get(i).addStringProperty("location", sensors.get(dronePath.get(i)).location);
+    		featureList.get(i).addStringProperty("rgb-string", sensorMap.get(0).get(i));
+    		featureList.get(i).addStringProperty("marker-color", sensorMap.get(0).get(i));
+    		featureList.get(i).addStringProperty("marker-symbol", sensorMap.get(1).get(i));
     	}
     	// Create a feature collection from the list of features described above
+    	// Add the drone's movements
+    	for(int i = 0; i < allFeatures.size(); i++)
+    	{
+    		for(int j = 0; j < allFeatures.get(i).size(); j++)
+    		{
+    			featureList.add(allFeatures.get(i).get(j));
+    		}
+    	}
     	var featureCol = FeatureCollection.fromFeatures(featureList);
     	
     	//Convert the feature collection to JSON format, write it to the file and then close the file 
