@@ -4,15 +4,18 @@ import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
+
 import java.util.ArrayList;
 import java.util.List;
+
 import com.mapbox.geojson.Geometry;
 import com.mapbox.geojson.Point;
 import com.mapbox.geojson.Polygon;
 import com.mapbox.geojson.LineString;
-
 import com.mapbox.geojson.FeatureCollection;
 import com.mapbox.geojson.Feature;
+import com.mapbox.turf.TurfJoins;
+
 import java.lang.reflect.Type;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -22,24 +25,34 @@ import java.net.http.HttpResponse.BodyHandlers;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 
-/**
- * Hello world!
+import java.awt.geom.Line2D;
+
+
+//import java.awt.Polygon;
+
+/**Title: Air Quality Drone
+ * Author: Ben Nichol 14/11/20
  *
+ * Description: This program will create a virtual drone that, given an input of sensors, with 
+ * 				their locations given as what3words addresses, will find an efficient path through
+ * 				these sensors and report back the air quality readings and export them as a geojson
+ * 				file. 
  */
 
 public class AirQualityDrone
 {
     public static void main( String[] args ) throws IOException, InterruptedException
     {
+    	
         Drone drone = new Drone();
-        var allFeatures = new ArrayList<List<Feature>>();
-        FeatureCollection nfz = noFlyZones(args);
+        var allFeatures = new ArrayList<Feature>();
+        FeatureCollection nfz = noFlyZones(args);     
         ArrayList<SensorsList> sensors = dailySensors(args);
         ArrayList<Point> coordinates = what3words(args, sensors);
         ArrayList<Integer> dronePath = greedyPath(drone, coordinates, args);
         var sensorOutput = flightPath(drone, sensors, dronePath, coordinates, nfz, allFeatures);
         var sensorMap = hexCodeConversion(sensorOutput);
-        geojsonConvert(sensorMap, sensors, dronePath, coordinates, allFeatures);
+        geojsonConvert(sensorMap, sensors, dronePath, coordinates, allFeatures, nfz);
     }
     
     public static class Drone 
@@ -204,31 +217,60 @@ public class AirQualityDrone
     	return dist;
     }
     
-    //---------------------------------PILE OF WANK---------------------------------------
     public static boolean insidePolygon(Point dronePos, FeatureCollection nfz)
     // This method will determine whether the point is inside the polygon or not
     {
-    	for(int i = 0; i < nfz.features().size(); i++)
+    	
+    	for(Feature f : nfz.features())
     	{
-    		Polygon poly = (Polygon)nfz.features().get(i).geometry();
-    		for(int j = 0; j < poly.coordinates().size(); j++)
+    		Polygon poly = (Polygon)f.geometry();
+    		if(TurfJoins.inside(dronePos, poly))
     		{
-    			
+    			return true;
     		}
     	}
     	
-    	
-    	
-    	return true;
+    	return false;
     }
-    //---------------------------------PILE OF WANK---------------------------------------
     
+    public static boolean lineIntersectPolygon(Point startPos, Point endPos, FeatureCollection nfz)
+    {	
+    	for(Feature f : nfz.features())    		
+    	{
+    		Polygon poly = (Polygon)f.geometry();
+    		var points = poly.coordinates().get(0);
+    		for(int i = 0; i < points.size()-1; i++)
+    		{
+    			double startLng = points.get(i).longitude();
+    			double startLat = points.get(i).latitude();
+    			double endLng = points.get(i+1).longitude();
+    			double endLat = points.get(i+1).latitude();
+    			
+    			Line2D.Double polyLine = new Line2D.Double(startLng, startLat, endLng, endLat);
+    			Line2D.Double droneLine = new Line2D.Double(startPos.longitude(), startPos.latitude(), endPos.longitude(), endPos.latitude());
+    			
+    			if (polyLine.intersectsLine(droneLine)) return true;
+    		}
+    	}
+    	return false;
+    }
     
-    public static ArrayList<List<String>> flightPath(Drone drone, ArrayList<SensorsList> sensors, ArrayList<Integer> dronePath, ArrayList<Point> coordinates, FeatureCollection nfz, ArrayList<List<Feature>> allFeatures)
+    public static boolean insideBoundary(Point pos)
+    {
+    	double maxLatBoundary = 55.946233;
+    	double minLatBoundary = 55.942617;
+    	double maxLngBoundary = -3.184319;
+    	double minLngBoundary = -3.192473;
+    	
+    	return pos.latitude() < maxLatBoundary & pos.latitude() > minLatBoundary & pos.longitude() < maxLngBoundary & pos.longitude() > minLngBoundary;
+    }
+    
+    public static ArrayList<List<String>> flightPath(Drone drone, ArrayList<SensorsList> sensors, ArrayList<Integer> dronePath, ArrayList<Point> coordinates, FeatureCollection nfz, ArrayList<Feature> allFeatures)
     // This method will control the drone's flight, taking it to the different sensors
     // and making sure it does not go into any restricted areas
     {
     	// No fly zones
+    	
     	var movementHistory = new ArrayList<Point>();
     	var readings = new ArrayList<String>();
     	var batteries = new ArrayList<String>();
@@ -255,6 +297,12 @@ public class AirQualityDrone
 	    		// Update the drone's position
 	    		newPosition = Point.fromLngLat(drone.position.longitude() + (Math.cos(Math.toRadians(drone.angle)) * 0.0003), drone.position.latitude() + (Math.sin(Math.toRadians(drone.angle)) * 0.0003));
 	    		
+	    		// Check to see whether the new position is within a no fly zone, and if so, update the angle of trajectory
+	    		while(lineIntersectPolygon(drone.position, newPosition, nfz) || !insideBoundary(newPosition))
+	    		{
+	    			drone.angle = (drone.angle + 10) % 360;
+	    			newPosition = Point.fromLngLat(drone.position.longitude() + (Math.cos(Math.toRadians(drone.angle)) * 0.0003), drone.position.latitude() + (Math.sin(Math.toRadians(drone.angle)) * 0.0003));
+	    		}
 	    		drone.position = newPosition;
 	    		
 	    		// Increment the drone's total moves
@@ -268,7 +316,6 @@ public class AirQualityDrone
 					{
 						readings.add(sensors.get(dronePath.get(i)-1).reading);
 						batteries.add(String.valueOf(sensors.get(dronePath.get(i)-1).battery));
-						
 					}
 	    			
 	    			sensProx = true;
@@ -277,19 +324,17 @@ public class AirQualityDrone
     	}
     	System.out.println("\nTotal number of moves = " + drone.moves);
     	
-    	var dronePositions = new ArrayList<Feature>();
+    	Feature dronePositions;
     	var sensorOutput = new ArrayList<List<String>>();
     	sensorOutput.add(readings);
     	sensorOutput.add(batteries);
     	
     	// Add the drone positions as a line string
-    	dronePositions.add(Feature.fromGeometry(LineString.fromLngLats(movementHistory)));
+    	dronePositions = Feature.fromGeometry(LineString.fromLngLats(movementHistory));
     	
     	// Give the lines a dark grey colour
-    	for(int j = 0; j < dronePositions.size(); j++)
-    	{
-    		dronePositions.get(j).addStringProperty("rgb-string", "#404040");
-    	}
+
+    	dronePositions.addStringProperty("rgb-string", "#404040");
     	allFeatures.add(dronePositions);
     	
     	return sensorOutput;
@@ -357,7 +402,8 @@ public class AirQualityDrone
     			colourMap.add(i, "#ff0000");
     			symbolMap.add(i, "danger");
     		}
-    		else // Gray, no symbol
+    		// Gray, no symbol
+    		else 
          	{
         		colourMap.add(i, "#aaaaaa");
         		symbolMap.add(i, "");
@@ -367,13 +413,14 @@ public class AirQualityDrone
     	sensorMap.add(symbolMap);
     	return sensorMap;
     }
-    public static void geojsonConvert(ArrayList<List<String>> sensorMap, ArrayList<SensorsList> sensors, ArrayList<Integer> dronePath, ArrayList<Point> coordinates, ArrayList<List<Feature>> allFeatures) throws IOException
+    public static void geojsonConvert(ArrayList<List<String>> sensorMap, ArrayList<SensorsList> sensors, ArrayList<Integer> dronePath, ArrayList<Point> coordinates, ArrayList<Feature> allFeatures, FeatureCollection nfz) throws IOException
     // This method will create a list of features from the sensor points and their associated values and add
     // them to a feature collection, along with the drone's movements.  This feature collection will then be converted to GeoJSON format and  
     // written to a file called 'aqmaps.geojson'
     {
     	// Creating a list to store the features and a File Writer to write the geojson file
     	var featureList = new ArrayList<Feature>();
+    	var buildingsList = new ArrayList<Feature>();
     	var jsonFile = new FileWriter("aqmaps.geojson");
     	
     	// Normalise the dronePath and coordinates array, removing prepended & appended drone starting positions, and reducing the values by 1 to
@@ -386,7 +433,7 @@ public class AirQualityDrone
     		dronePath.set(i, dronePath.get(i)-1);
     	}
     	
-    	// Loop through the feature list, adding the polygons and their colour values
+    	// Loop through the feature list, adding the points and their associated attributes
     	for(int i = 0; i < dronePath.size(); i++)
     	{
     		featureList.add(Feature.fromGeometry(coordinates.get(dronePath.get(i))));
@@ -396,15 +443,27 @@ public class AirQualityDrone
     		featureList.get(i).addStringProperty("marker-color", sensorMap.get(0).get(i));
     		featureList.get(i).addStringProperty("marker-symbol", sensorMap.get(1).get(i));
     	}
+    	for(int i = 0; i < nfz.features().size(); i++)
+    	{
+    		buildingsList.add(nfz.features().get(i));
+    		buildingsList.get(i).addStringProperty("rgb-string", "#ff0000");
+    		buildingsList.get(i).addStringProperty("fill", "#ff0000");
+    		buildingsList.get(i).addNumberProperty("fill-opacity", 0.75);
+    	}
     	// Create a feature collection from the list of features described above
-    	// Add the drone's movements
+    	// Add the drone's movements to the feature list
     	for(int i = 0; i < allFeatures.size(); i++)
     	{
-    		for(int j = 0; j < allFeatures.get(i).size(); j++)
-    		{
-    			featureList.add(allFeatures.get(i).get(j));
-    		}
+    		featureList.add(allFeatures.get(i));
     	}
+    	
+    	// Add the no fly zones to the feature list
+    	for(int i = 0; i < buildingsList.size(); i++)
+    	{
+    		featureList.add(buildingsList.get(i));
+    	}
+    	
+    	// Add all of the features from the feature list into a feature collection
     	var featureCol = FeatureCollection.fromFeatures(featureList);
     	
     	//Convert the feature collection to JSON format, write it to the file and then close the file 
