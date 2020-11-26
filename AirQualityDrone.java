@@ -1,14 +1,12 @@
 package uk.ac.ed.inf.aqmaps;
 
-import java.io.FileNotFoundException;
-import java.io.FileReader;
 import java.io.FileWriter;
+import java.io.BufferedWriter;
 import java.io.IOException;
 
 import java.util.ArrayList;
 import java.util.List;
 
-import com.mapbox.geojson.Geometry;
 import com.mapbox.geojson.Point;
 import com.mapbox.geojson.Polygon;
 import com.mapbox.geojson.LineString;
@@ -50,9 +48,9 @@ public class AirQualityDrone
         ArrayList<SensorsList> sensors = dailySensors(args);
         ArrayList<Point> coordinates = what3words(args, sensors);
         ArrayList<Integer> dronePath = greedyPath(drone, coordinates, args);
-        var sensorOutput = flightPath(drone, sensors, dronePath, coordinates, nfz, allFeatures);
+        var sensorOutput = flightPath(drone, sensors, dronePath, coordinates, nfz, allFeatures, args);
         var sensorMap = hexCodeConversion(sensorOutput);
-        geojsonConvert(sensorMap, sensors, dronePath, coordinates, allFeatures, nfz);
+        geojsonConvert(sensorMap, sensors, dronePath, coordinates, allFeatures, nfz, args);
     }
     
     public static class Drone 
@@ -265,12 +263,13 @@ public class AirQualityDrone
     	return pos.latitude() < maxLatBoundary & pos.latitude() > minLatBoundary & pos.longitude() < maxLngBoundary & pos.longitude() > minLngBoundary;
     }
     
-    public static ArrayList<List<String>> flightPath(Drone drone, ArrayList<SensorsList> sensors, ArrayList<Integer> dronePath, ArrayList<Point> coordinates, FeatureCollection nfz, ArrayList<Feature> allFeatures)
+    public static ArrayList<List<String>> flightPath(Drone drone, ArrayList<SensorsList> sensors, ArrayList<Integer> dronePath, ArrayList<Point> coordinates, FeatureCollection nfz, ArrayList<Feature> allFeatures, String[] args) throws IOException
     // This method will control the drone's flight, taking it to the different sensors
     // and making sure it does not go into any restricted areas
     {
     	// No fly zones
     	
+    	var flightpathTextList = new ArrayList<List<String>>();
     	var movementHistory = new ArrayList<Point>();
     	var readings = new ArrayList<String>();
     	var batteries = new ArrayList<String>();
@@ -278,14 +277,20 @@ public class AirQualityDrone
     	double deltaLat = 0;
     	boolean sensProx = false;
     	Point newPosition;
+    	Point oldPosition;
+    	String sensorW3W;
+    	
     	for(int i = 1; i < dronePath.size(); i++)
     	{
     		sensProx = false;
     		while (!sensProx & drone.moves < 150)
 	    	{
+    			// Initialise the what3words address as null, so it can be better used
+    			// in the flightpath text file
+    			sensorW3W = "null";
     			// Record all the positions of the drone
     			movementHistory.add(drone.position);
-    			
+    			oldPosition = drone.position;
 	    		// Determine angle of travel
 	    		deltaLat = coordinates.get(dronePath.get(i)).latitude() - drone.position.latitude();
 	    		deltaLng = coordinates.get(dronePath.get(i)).longitude() - drone.position.longitude();
@@ -312,17 +317,31 @@ public class AirQualityDrone
 	    		// Check whether the drone is close enough to a sensor to read it, and if so, take a reading
 	    		if(euclidDist(drone.position, coordinates.get(dronePath.get(i))) <= 0.0002)
 	    		{
+	    			
 	    			if(i < dronePath.size()-1)
 					{
 						readings.add(sensors.get(dronePath.get(i)-1).reading);
 						batteries.add(String.valueOf(sensors.get(dronePath.get(i)-1).battery));
+						sensorW3W = sensors.get(dronePath.get(i)-1).location;
 					}
 	    			
 	    			sensProx = true;
 	    		}
+	    		
+	    		// Add all the required information for the flightpath-DD-MM-YYYY.txt file
+	    		flightpathTextList.add(List.of(Integer.toString(drone.moves),
+	    								   Double.toString(oldPosition.longitude()),
+	    								   Double.toString(oldPosition.latitude()),
+	    								   Integer.toString(drone.angle),
+	    								   Double.toString(drone.position.longitude()),
+	    								   Double.toString(drone.position.latitude()),
+	    								   sensorW3W));
 	    	}
     	}
     	System.out.println("\nTotal number of moves = " + drone.moves);
+    	
+    	// Write the contents of flightpathTextList to a .txt file
+    	flightpathWrite(flightpathTextList, args);
     	
     	Feature dronePositions;
     	var sensorOutput = new ArrayList<List<String>>();
@@ -338,6 +357,25 @@ public class AirQualityDrone
     	allFeatures.add(dronePositions);
     	
     	return sensorOutput;
+    }
+    
+    public static void flightpathWrite(ArrayList<List<String>> flightpathTextList, String[] args) throws IOException
+    {
+    	String fileName = "flightpath-" + args[0] + "-" + args[1] + "-" + args[2] + ".txt";
+    	BufferedWriter bw = new BufferedWriter(new FileWriter(fileName));
+    	
+    	for(int i = 0; i < flightpathTextList.size(); i++)
+    	{
+    		for(int j = 0; j < flightpathTextList.get(i).size()-1; j++)
+    		{
+    			bw.write(flightpathTextList.get(i).get(j) + ",");
+    		}
+    		bw.write(flightpathTextList.get(i).get(flightpathTextList.get(i).size()-1));
+    		bw.newLine();
+    	}
+    	
+    	bw.flush();
+    	bw.close();
     }
     
     public static ArrayList<List<String>> hexCodeConversion(ArrayList<List<String>> sensorOutput)
@@ -413,7 +451,7 @@ public class AirQualityDrone
     	sensorMap.add(symbolMap);
     	return sensorMap;
     }
-    public static void geojsonConvert(ArrayList<List<String>> sensorMap, ArrayList<SensorsList> sensors, ArrayList<Integer> dronePath, ArrayList<Point> coordinates, ArrayList<Feature> allFeatures, FeatureCollection nfz) throws IOException
+    public static void geojsonConvert(ArrayList<List<String>> sensorMap, ArrayList<SensorsList> sensors, ArrayList<Integer> dronePath, ArrayList<Point> coordinates, ArrayList<Feature> allFeatures, FeatureCollection nfz, String[] args) throws IOException
     // This method will create a list of features from the sensor points and their associated values and add
     // them to a feature collection, along with the drone's movements.  This feature collection will then be converted to GeoJSON format and  
     // written to a file called 'aqmaps.geojson'
@@ -421,7 +459,8 @@ public class AirQualityDrone
     	// Creating a list to store the features and a File Writer to write the geojson file
     	var featureList = new ArrayList<Feature>();
     	var buildingsList = new ArrayList<Feature>();
-    	var jsonFile = new FileWriter("aqmaps.geojson");
+    	String fileName = "readings-" + args[0] + "-" + args[1] + "-" + args[2] + ".geojson";
+    	var jsonFile = new FileWriter(fileName);
     	
     	// Normalise the dronePath and coordinates array, removing prepended & appended drone starting positions, and reducing the values by 1 to
     	// be in line with the sensor indexing
