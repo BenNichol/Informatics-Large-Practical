@@ -14,6 +14,9 @@ import com.mapbox.geojson.Point;
  */
 
 public class DroneApp
+/**
+ * This class acts as the entry point into the program.
+ */
 {
 	public static void main(String[] args) throws IOException, InterruptedException
 	{
@@ -27,16 +30,16 @@ public class DroneApp
 		long seed = Long.parseLong(args[5]);
 		String port = args[6];
 		
+		// Call the controller class' methods
 		Controller controller = new Controller(date, startPosition, seed, "http://localhost:", port);
 		controller.serverDownload();
 		System.out.println("Server Download done");
 		controller.orderSensors();
 		System.out.println("Ordering of sensors done");
-		//System.out.println("\n" + controller.toString());
 		controller.droneFlight();
 		System.out.println("Drone flight done");
 		controller.logToFile();
-		System.out.println("Logging to file...");
+		System.out.println("Log to file done");
 		controller.hexCodeConversion();
 		System.out.println("Hex code conversion done");
 		controller.geojsonConvert();

@@ -14,11 +14,17 @@ import com.mapbox.geojson.FeatureCollection;
 import com.mapbox.geojson.Point;
 
 public class Server
+/**
+ * This class is used to perform all the connection required to the server,
+ * downloading data and returning it when required. 
+ */
 {
+	// Define attributes
 	private String host;
 	private String port;
     private final HttpClient client;
 	
+    // Constructor
 	public Server(String host, String port) {
 		this.host = host;
 		this.port = port;
@@ -26,6 +32,10 @@ public class Server
 	}
 	
 	public Point pointFromW3W(String what3words) throws IOException, InterruptedException
+	/**
+	 * This method will return the coordinate of the sensor corresponding to the particular
+	 * 'What3Words' address from the webserver.
+	 */
 	{
 		String[] words = what3words.split("\\.");
 		String urlString = host + port + "/words/" + words[0] + "/" + words[1] + "/" + words[2] + "/details.json";
@@ -41,6 +51,10 @@ public class Server
 	}
 	
 	public FeatureCollection noFlyZones() throws IOException, InterruptedException 
+	/**
+	 * This method will return a Feature Collection of the 'No Fly Zones' from the
+	 * webserver.
+	 */
 	{
 		String urlString = host + port + "/buildings/no-fly-zones.geojson";
 		
@@ -56,6 +70,9 @@ public class Server
 	}
 	
 	public ArrayList<Sensor> dailySensors(String[] date) throws IOException, InterruptedException
+	/**
+	 * This method will return the list of 33 sensors from the webserver.
+	 */
 	{
 		String urlString = host + port + "/maps/" + date[2] + "/" + date[1] + "/" + date[0] + "/air-quality-data.json";
 		

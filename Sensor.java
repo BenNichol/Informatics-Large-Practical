@@ -1,21 +1,24 @@
 package uk.ac.ed.inf.aqmaps;
 
-import java.net.URI;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse.BodyHandlers;
-import java.util.ArrayList;
-
-import com.google.gson.Gson;
 import com.mapbox.geojson.Point;
 
 public class Sensor
+/**
+ * This class allows for the JSON list of sensors downloaded by the
+ * webserver to be deserialised to a java object using its type. It
+ * also allows for the list of sensors to hold more information
+ * than is given in the JSON list of sensors by adding a coordinates
+ * attribute.
+ */
 {
+	// Define attributes
 	private String location;
 	private double battery;
 	private String reading;
 	
 	private Point coordinates;
 
+	// Getters
 	public String getLocation() {
 		return location;
 	}
@@ -36,6 +39,7 @@ public class Sensor
 		return reading;
 	}
 
+	// Setters
 	public void setReading(String reading) {
 		this.reading = reading;
 	}

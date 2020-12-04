@@ -14,16 +14,14 @@ import com.mapbox.geojson.LineString;
 import com.mapbox.geojson.Point;
 import com.mapbox.geojson.Polygon;
 
-public class Controller {
-	/**
-	 * This class is used to Control the direction of the program, it hosts multiple
-	 * methods to aid in the drone's navigation of the sensors, exporting the readings
-	 * graphically and providing a text file documenting the drone's movements.
-	 * @param args
-	 * @throws IOException
-	 * @throws InterruptedException
-	 */
-	
+public class Controller 
+/**
+ * This class is used to Control the direction of the program, it hosts multiple
+ * methods to aid in the drone's navigation of the sensors, exporting the readings
+ * graphically and providing a text file documenting the drone's movements.
+ */
+{
+	// Define attributes
 	private String[] date;
 	
 	private Server server;
@@ -41,6 +39,7 @@ public class Controller {
 	private ArrayList<String> colourMap;
 	private ArrayList<String> symbolMap;
 	
+	// Contructor
 	public Controller(String[] date, Point startPosition, Long seed, String host, String port)
 	{
 		this.date = date;
@@ -54,9 +53,13 @@ public class Controller {
 		this.colourMap = new ArrayList<String>();
 		this.symbolMap = new ArrayList<String>();
 	}
+	
 	public String toString()
+	/**
+	 * This method allows for a custom string to be output by the program
+	 */
 	{
-		String stringOutput = "Drone moves = " + drone.getMoves(); 
+		String stringOutput = ""; 
 		
 		return stringOutput;
 	}
@@ -73,6 +76,10 @@ public class Controller {
     }
 	
 	public void serverDownload() throws IOException, InterruptedException
+	/**
+	 * This method will download all the required data from the webserver
+	 * and store the information in the appropriate attribute
+	 */
 	{
 		sensors = server.dailySensors(date);
 		nfz = server.noFlyZones();
@@ -169,14 +176,15 @@ public class Controller {
 		for(int i = 0; i <= sensors.size(); i++)
 		{
 			sensProx = false;
+			
+			// If the drone has visited all sensors, go back to the start point. Else continue visiting sensors
 			targetPoint = i == sensors.size() ? drone.getStartPosition() : sensors.get(i).getCoordinates();
-			System.out.println("Target point = " + targetPoint);
+			
 			// Loop until the drone is close enough to a sensor to take a reading (<= 0.0002 degrees)
 			// or the maximum move limit is reached
 			while (!sensProx & drone.getMoves() < 150)
 			{
-				
-				System.out.println("Drone moves = " + drone.getMoves());
+
 				// Initialise the what3words address as null, so it can be better used
 				// in the flightpath text file
 				sensorW3W = "null";
@@ -266,7 +274,6 @@ public class Controller {
 				
 				// Log all the moves
 				logMove(drone.getMoves(), oldPosition, drone.getAngle(), newPosition, sensorW3W);
-				System.out.println(i);
 			}
 		}
 
@@ -279,6 +286,9 @@ public class Controller {
 	}
 
 	public void logMove(int moves, Point oldPosition, int angle, Point newPosition, String sensorW3W)
+	/**
+	 * This method will create a string describing the drone's moves.
+	 */
 	{
 		log = log + String.valueOf(moves) 					+ ","
 				  + String.valueOf(oldPosition.longitude()) + ","
@@ -291,6 +301,9 @@ public class Controller {
 	}
 	
 	public void logToFile() throws IOException
+	/**
+	 * This method will write the drone's flightpath information (given by log) to a text file
+	 */
 	{
 		if(log.length() == 0) return;
 		
@@ -305,118 +318,6 @@ public class Controller {
     	fw.close();
 	}
 	
-	/*public static void main( String[] args ) throws IOException, InterruptedException
-    		/**
-     * This is the main() method in which all of the other methods in the class will be called
-     * and where the Drone and Random instances will be created
-
-    {
-    	// Create an instance of the Drone class, this drone will be manipulated throughout the execution
-    	// of the program
-        Drone drone = new Drone();
-        
-        // Create an instance of type Random, taking in the 'seed' from the arguments list
-        Random rand = new Random(Long.parseLong(args[5]));
-        drone.setRand(rand);
-
-        // Obtain the no fly zones, the list of daily sensors and their respective coordinates
-        FeatureCollection nfz = noFlyZones(args);     
-        ArrayList<Sensor> sensors = dailySensors(args);
-        var coordinates = what3words(args, sensors);
-        
-        // Set and get the path permutation
-        drone.setPath(coordinates, args);
-        var dronePath = drone.getPath();
-        
-        // Set and get the flight path
-        drone.setFlight(sensors, coordinates, nfz, args);
-        var sensorMap = hexCodeConversion(drone.getFlight());
-        
-        Feature flightFeature = drone.getFlightFeature();
-        geojsonConvert(sensorMap, sensors, dronePath, coordinates, flightFeature, nfz, args);
-        
-    	//This can be used to check the total number of moves the drone performs
-    	System.out.println("\nTotal number of moves = " + drone.getMoves());
-    	 
-    }
-	*/
-	
-//	// Just have one HttpClient, shared between all HttpRequests
-//    private static final HttpClient client = HttpClient.newHttpClient();
-//    
-//    public static FeatureCollection noFlyZones(String[] args) throws IOException, InterruptedException
-//    /**
-//     * This method will load in the 'No Fly Zones' from the web server and parse them as a JSON formatted
-//     * file.
-//     * The file's will then be translated to a GeoJSON Feature Collection and returned, for use elsewhere.
-//     */
-//    {
-//    	// Load in the "No Fly Zones" for the drone
-//    	// HttpClient assumes that it is a GET request by default.
-//    	String urlString = "http://localhost:" + args[6] + "/buildings/no-fly-zones.geojson";
-//    	var request = HttpRequest.newBuilder().uri(URI.create(urlString)).build();
-//    	
-//    	// The response object is of class HttpResponse<String>
-//    	var response = client.send(request, BodyHandlers.ofString());
-//    	
-//    	// Create a variable of type Feature Collection to store the data
-//    	var nfz = FeatureCollection.fromJson(response.body());
-//    	
-//    	return nfz;
-//    }
-//    
-//    public static ArrayList<Sensor> dailySensors(String[] args) throws IOException, InterruptedException
-//    /**
-//     * This method will load the list of sensors for the specific date (given with args[])
-//     * from the web server and parse them as a JSON formatted file. It will then
-//     * return them as an Array List of type SensorsList.
-//     */
-//    {	
-//    	// Load in the list of sensors for that day
-//    	String urlString = "http://localhost:" + args[6] + "/maps/" + args[2] + "/" + args[1] + "/" + args[0] + "/air-quality-data.json";
-//    	var request = HttpRequest.newBuilder().uri(URI.create(urlString)).build();
-//    	
-//    	// The response object is of class HttpResponse<String>
-//    	var response = client.send(request, BodyHandlers.ofString());
-//    	
-//    	// Get the types from the SensorsList class
-//    	Type listType = new TypeToken<ArrayList<Sensor>>() {}.getType();
-//    	
-//    	// Create a variable of type ArrayList<SensorsList>
-//    	ArrayList<Sensor> sensors = new Gson().fromJson(response.body(), listType);
-//    	
-//    	return sensors;
-//    }
-//    
-//    public static ArrayList<Point> what3words(String[] args, ArrayList<Sensor> sensors) throws InterruptedException, IOException
-//    /**
-//     * This method will determine the coordinates of each sensor using their associated 'What3Words' address.
-//     * The file returned from the web server will then have its contents attributed to certain types, based
-//     * on the DeserialisedW3W class. The longitude and latitude coordinates for each sensor will then be
-//     * extracted and stored in an Array List of type Point and returned.  
-//     */
-//    {
-//    	// Create a variable to store the coordinates and loop through all of the sensors, obtaining their coordinates
-//    	var coordinates = new ArrayList<Point>();
-//    	for(int i = 0; i < 33; i++) {
-//    		String location = sensors.get(i).location;
-//    		String[] what3words = location.split("\\.");
-//    		String urlString = "http://localhost:" + args[6] + "/words/" + what3words[0] + "/" + what3words[1] + "/" + what3words[2] + "/details.json";
-//    		
-//    		// Load in all the sensor details from What3Words address
-//    		var request = HttpRequest.newBuilder().uri(URI.create(urlString)).build();
-//    		// The response object is of class HttpResponse<String>
-//    		var response = client.send(request, BodyHandlers.ofString());
-//    		
-//    		// Create a variable to store the response from the webServer and then add the appropriate
-//    		// information to the coordinates Array List
-//    		var DeserialisedW3W = new Gson().fromJson(response.body(), DeserialisedW3W.class);   
-//    		coordinates.add(Point.fromLngLat(DeserialisedW3W.coordinates.lng, DeserialisedW3W.coordinates.lat));
-//    		
-//    	}
-//    	return coordinates;
-//    }
-    
 	public static boolean lineIntersectPolygon(Point startPos, Point endPos, FeatureCollection nfz)
     /**
      * The following method is used to determine whether the drone enters a 'No Fly Zone'.
@@ -461,28 +362,6 @@ public class Controller {
     		 & pos.longitude() > minLngBoundary;
     }
 
-//    public static void flightpathWrite(ArrayList<List<String>> flightpathTextList, String[] args) throws IOException
-//    /**
-//     * This method writes the flight data obtained by the drone's flightpath to a text file.
-//     */
-//    {
-//    	String fileName = "flightpath-" + args[0] + "-" + args[1] + "-" + args[2] + ".txt";
-//    	BufferedWriter bw = new BufferedWriter(new FileWriter(fileName));
-//    	
-//    	for(int i = 0; i < flightpathTextList.size(); i++)
-//    	{
-//    		for(int j = 0; j < flightpathTextList.get(i).size()-1; j++)
-//    		{
-//    			bw.write(flightpathTextList.get(i).get(j) + ",");
-//    		}
-//    		bw.write(flightpathTextList.get(i).get(flightpathTextList.get(i).size()-1));
-//    		bw.newLine();
-//    	}
-//    	
-//    	bw.flush();
-//    	bw.close();
-//    }
-//    
     public void hexCodeConversion()
     /**
      * This method takes the reading and battery data from the sensors and uses them to determine
